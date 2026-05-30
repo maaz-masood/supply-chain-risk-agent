@@ -8,8 +8,7 @@ import json
 import httpx
 from datetime import datetime
 from typing import TypedDict, Annotated
-from langgraph.graph import StateGraph, START, END
-from langgraph.graph.message import add_messages
+from langgraph.graph import StateGraph, START, END, add_messages
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, SystemMessage
 from app.database.connection import SessionLocal
@@ -143,11 +142,11 @@ def generate_report(state: AgentState) -> AgentState:
         "alerts_sent": False
     }
 
-# Node 4 — Save report
 def save_report(state: AgentState) -> AgentState:
     print("Saving report to database...")
     
-    
+    from datetime import datetime
+    import os
     
     db = SessionLocal()
     report = RiskReport(
@@ -162,20 +161,48 @@ def save_report(state: AgentState) -> AgentState:
     db.add(report)
     db.commit()
     db.close()
-     # Save to markdown file
-    import os
+    
+    # Save to markdown file
     os.makedirs("reports", exist_ok=True)
-    filename = f"reports/risk_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.md"
-    with open(filename, "w") as f:
+    filename = f"risk_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.md"
+    filepath = f"reports/{filename}"
+    with open(filepath, "w") as f:
         f.write(state["report"])
-    
-    print(f"Report saved to {filename} ✅")
+    print(f"Report saved to {filepath} ✅")
     print("Report saved to database ✅")
-    return state
     
-   
+    # ← ADD HERE — Generate email summary
+    print("Generating email summary...")
+    from langchain_core.messages import HumanMessage, SystemMessage
+    summary_response = llm.invoke([
+        SystemMessage(content="You are a supply chain analyst."),
+        HumanMessage(content=f"""
+        Based on this full report write a SHORT email summary (max 150 words) with:
+        - 3 most critical alerts
+        - Top 2 risky suppliers
+        - 2 immediate actions needed
+        
+        Be concise and direct. No markdown formatting.
+        
+        Report:
+        {state["report"]}
+        """)
+    ])
+    email_summary = summary_response.content
+    print("Email summary generated ✅")
+    from datetime import datetime
 
-# Build the graph
+    # Send email with summary + attachment
+    print("Sending email alert...")
+    from app.agent.gmail_integration import send_email, save_to_drive
+    send_email(
+    "maazulhasan@usf.edu",
+    f"Daily Supply Chain Risk Report — {datetime.now().strftime('%B %d, %Y')}",
+    email_summary,
+    attachment_path=filepath
+)
+    
+    return {**state, "alerts_sent": True}
 def build_agent():
     graph = StateGraph(AgentState)
     

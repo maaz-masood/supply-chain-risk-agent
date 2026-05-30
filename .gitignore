@@ -9,3 +9,6 @@ uv.lock
 build/
 dist/
 .vscode/
+
+credentials.json
+token.json
