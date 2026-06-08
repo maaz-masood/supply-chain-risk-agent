@@ -1,8 +1,13 @@
 from dotenv import load_dotenv
 load_dotenv()
+import anthropic
 
 import sys
 import os
+import boto3
+
+
+
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 import json
 import httpx
@@ -28,10 +33,27 @@ class AgentState(TypedDict):
     alerts_sent: bool
 
 # Initialize LLM using OpenRouter
-llm = ChatOpenAI(
-    model="openrouter/auto",
-    openai_api_key=os.getenv("OPENROUTER_API_KEY"),
-    openai_api_base="https://openrouter.ai/api/v1"
+#llm = ChatOpenAI(
+ #   model="openrouter/auto",
+  #  openai_api_key=os.getenv("OPENROUTER_API_KEY"),
+   # openai_api_base="https://openrouter.ai/api/v1"
+#)
+
+from langchain_aws import ChatBedrock
+# Bedrock API key auth — simplest approach
+os.environ['AWS_BEARER_TOKEN_BEDROCK'] = os.getenv('AWS_BEARER_TOKEN_BEDROCK')
+
+bedrock_client = boto3.client(
+    service_name="bedrock-runtime",
+    region_name="us-east-1"
+)
+
+# Use Amazon Nova Micro — cheapest model
+from langchain_aws import ChatBedrockConverse
+
+llm = ChatBedrockConverse(
+    client=bedrock_client,
+    model="amazon.nova-micro-v1:0",
 )
 
 # Node 1 — Fetch risk data
