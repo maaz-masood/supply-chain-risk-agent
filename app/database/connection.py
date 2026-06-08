@@ -23,4 +23,4 @@ def get_db():
 def create_tables():
     from app.database.models import Base
     Base.metadata.create_all(bind=engine)
-    print("Tables created successfully ✅")
+    print("Tables created successfully")

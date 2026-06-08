@@ -39,7 +39,7 @@ def get_high_risk_suppliers(db: Session = Depends(get_db)):
 def get_delayed_orders(db: Session = Depends(get_db)):
     """Get orders with significant delays"""
     orders = db.query(Order).filter(
-        Order.delay_days > 5
+        Order.delay_days > 0
     ).order_by(
         Order.delay_days.desc()
     ).limit(20).all()
