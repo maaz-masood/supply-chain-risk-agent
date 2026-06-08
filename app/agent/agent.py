@@ -60,43 +60,49 @@ def fetch_risk_data(state: AgentState) -> AgentState:
 # Node 2 — Analyze risk
 def analyze_risk(state: AgentState) -> AgentState:
     print("Analyzing risk patterns...")
-
+    
+    risk_data = state["risk_data"]
+    delayed_orders = state["delayed_orders"]
+    disruptions = state["disruptions"]
+    summary = state["summary"]
+    
     analysis_prompt = f"""
-    You are a supply chain risk analyst. Analyze this data and identify:
-    1. Most critical suppliers
-    2. Biggest disruption patterns
-    3. Immediate actions needed
+You are a supply chain risk analyst. Analyze this data and identify:
+1. Highest risk product categories and markets
+2. Delivery performance patterns
+3. Late delivery risk concentrations
+4. Profit impact of delays
+5. Immediate actions needed
 
-    HIGH RISK SUPPLIERS:
-    {json.dumps(state["risk_data"][:5], indent=2)}
+HIGH RISK CATEGORIES BY MARKET:
+{json.dumps(risk_data[:5], indent=2)}
 
-    DELAYED ORDERS (top 5):
-    {json.dumps(state["delayed_orders"][:5], indent=2)}
+DELAYED ORDERS (top 5):
+{json.dumps(delayed_orders[:5], indent=2)}
 
-    DISRUPTION PATTERNS:
-    {json.dumps(state["disruptions"][:5], indent=2)}
+DISRUPTION PATTERNS:
+{json.dumps(disruptions[:5], indent=2)}
 
-    OVERALL SUMMARY:
-    {json.dumps(state["summary"], indent=2)}
+OVERALL SUMMARY:
+{json.dumps(summary, indent=2)}
 
-    Provide a concise risk analysis with:
-    - Critical risks (immediate action needed)
-    - Warning risks (monitor closely)
-    - Key recommendations
-    """
-
+Focus on:
+- Which markets have highest late delivery risk
+- Which categories are most affected
+- Financial impact (profit per order)
+- Recommended actions for procurement team
+"""
+    
     response = llm.invoke([
         SystemMessage(content="You are an expert supply chain risk analyst."),
         HumanMessage(content=analysis_prompt)
     ])
-
+    
     return {
         **state,
         "messages": [response],
-        "report": response.content,
+        "report": response.content
     }
-
-# Node 3 — Generate final report
 def generate_report(state: AgentState) -> AgentState:
     print("Generating final report...")
 
