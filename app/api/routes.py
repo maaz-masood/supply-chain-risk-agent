@@ -8,102 +8,107 @@ router = APIRouter()
 
 @router.get("/suppliers/risk")
 def get_high_risk_suppliers(db: Session = Depends(get_db)):
-    """Get suppliers with highest risk scores"""
     results = db.query(
-        Order.supplier_id,
-        Order.product_category,
-        func.avg(Order.supplier_reliability_score).label("avg_reliability"),
-        func.avg(Order.supply_risk).label("avg_risk"),
+        Order.category_name,
+        Order.market,
+        Order.order_region,
         func.count(Order.id).label("total_orders"),
-        func.sum(Order.delay_days).label("total_delays")
+        func.sum(Order.late_delivery_risk).label("total_late_risk"),
+        func.avg(Order.order_profit_per_order).label("avg_profit"),
+        func.avg(Order.days_shipping_real - 
+                 Order.days_shipping_scheduled).label("avg_delay")
     ).group_by(
-        Order.supplier_id,
-        Order.product_category
+        Order.category_name,
+        Order.market,
+        Order.order_region
     ).order_by(
-        func.avg(Order.supply_risk).desc()
+        func.sum(Order.late_delivery_risk).desc()
     ).limit(10).all()
 
     return [
         {
-            "supplier_id": r.supplier_id,
-            "product_category": r.product_category,
-            "avg_reliability_score": round(r.avg_reliability, 2),
-            "avg_risk_score": round(r.avg_risk, 2),
+            "category": r.category_name,
+            "market": r.market,
+            "region": r.order_region,
             "total_orders": r.total_orders,
-            "total_delay_days": r.total_delays
+            "total_late_risk": r.total_late_risk,
+            "avg_profit": round(r.avg_profit or 0, 2),
+            "avg_delay_days": round(r.avg_delay or 0, 1)
         }
         for r in results
     ]
 
 @router.get("/orders/delayed")
 def get_delayed_orders(db: Session = Depends(get_db)):
-    """Get orders with significant delays"""
     orders = db.query(Order).filter(
-        Order.delay_days > 0
+        Order.days_shipping_real > Order.days_shipping_scheduled
     ).order_by(
-        Order.delay_days.desc()
+        (Order.days_shipping_real - Order.days_shipping_scheduled).desc()
     ).limit(20).all()
 
     return [
         {
             "order_id": o.order_id,
-            "supplier_id": o.supplier_id,
-            "product_category": o.product_category,
-            "delay_days": o.delay_days,
-            "disruption_type": o.disruption_type,
-            "disruption_severity": o.disruption_severity,
-            "order_value_usd": o.order_value_usd
+            "category": o.category_name,
+            "market": o.market,
+            "shipping_mode": o.shipping_mode,
+            "days_real": o.days_shipping_real,
+            "days_scheduled": o.days_shipping_scheduled,
+            "delay_days": o.days_shipping_real - o.days_shipping_scheduled,
+            "delivery_status": o.delivery_status,
+            "late_delivery_risk": o.late_delivery_risk,
+            "profit": o.order_profit_per_order
         }
         for o in orders
     ]
 
 @router.get("/orders/disruptions")
 def get_disruptions(db: Session = Depends(get_db)):
-    """Get disruption summary by type"""
     results = db.query(
-        Order.disruption_type,
-        Order.disruption_severity,
+        Order.delivery_status,
+        Order.shipping_mode,
         func.count(Order.id).label("count"),
-        func.avg(Order.delay_days).label("avg_delay")
+        func.avg(Order.days_shipping_real -
+                 Order.days_shipping_scheduled).label("avg_delay")
     ).group_by(
-        Order.disruption_type,
-        Order.disruption_severity
+        Order.delivery_status,
+        Order.shipping_mode
     ).order_by(
         func.count(Order.id).desc()
     ).all()
 
     return [
         {
-            "disruption_type": r.disruption_type,
-            "severity": r.disruption_severity,
+            "delivery_status": r.delivery_status,
+            "shipping_mode": r.shipping_mode,
             "count": r.count,
-            "avg_delay_days": round(r.avg_delay, 1)
+            "avg_delay_days": round(r.avg_delay or 0, 1)
         }
         for r in results
     ]
 
 @router.get("/suppliers/summary")
 def get_supplier_summary(db: Session = Depends(get_db)):
-    """Get overall supplier performance summary"""
     total_orders = db.query(func.count(Order.id)).scalar()
-    avg_delay = db.query(func.avg(Order.delay_days)).scalar()
+    avg_delay = db.query(
+        func.avg(Order.days_shipping_real - Order.days_shipping_scheduled)
+    ).scalar()
     high_risk = db.query(func.count(Order.id)).filter(
-        Order.supply_risk > 0.5
+        Order.late_delivery_risk == 1
     ).scalar()
-    total_value = db.query(
-        func.sum(Order.order_value_usd)
-    ).scalar()
+    total_sales = db.query(func.sum(Order.sales)).scalar()
+    total_profit = db.query(func.sum(Order.order_profit_per_order)).scalar()
 
     return {
         "total_orders": total_orders,
-        "average_delay_days": round(avg_delay, 1),
+        "average_delay_days": round(avg_delay or 0, 1),
         "high_risk_orders": high_risk,
-        "total_order_value_usd": round(total_value, 2)
+        "total_sales_usd": round(total_sales or 0, 2),
+        "total_profit_usd": round(total_profit or 0, 2)
     }
 
 @router.get("/reports")
 def get_reports(db: Session = Depends(get_db)):
-    """Get all generated risk reports"""
     reports = db.query(RiskReport).order_by(
         RiskReport.generated_at.desc()
     ).limit(10).all()

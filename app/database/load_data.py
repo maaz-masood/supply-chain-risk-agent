@@ -1,18 +1,10 @@
 import pandas as pd
 import sys
 import os
-
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 
 from app.database.connection import SessionLocal, create_tables
 from app.database.models import Order
-
-def _disruption_severity(delay: int) -> str:
-    if delay >= 10:
-        return "high"
-    elif delay >= 5:
-        return "medium"
-    return "low"
 
 def load_csv_data(filepath: str, limit: int = 50000):
     create_tables()
@@ -23,31 +15,40 @@ def load_csv_data(filepath: str, limit: int = 50000):
     print(f"Loading {len(df)} records...")
 
     for _, row in df.iterrows():
-        real = int(row.get("Days for shipping (real)", 0) or 0)
-        scheduled = int(row.get("Days for shipment (scheduled)", 0) or 0)
-        delay = max(0, real - scheduled)
-        late_risk = int(row.get("Late_delivery_risk", 0) or 0)
-
         order = Order(
             order_id=int(row.get("Order Id", 0) or 0),
-            supplier_id=int(row.get("Department Id", 0) or 0),
-            product_category=str(row.get("Category Name", "")),
-            supplier_reliability_score=round(1.0 - late_risk, 2),
-            supply_risk=float(late_risk),
-            delay_days=delay,
-            disruption_type=str(row.get("Delivery Status", "")),
-            disruption_severity=_disruption_severity(delay),
-            order_value_usd=float(row.get("Sales", 0.0) or 0.0),
+            order_status=str(row.get("Order Status", "")),
+            shipping_mode=str(row.get("Shipping Mode", "")),
+            days_shipping_real=int(row.get("Days for shipping (real)", 0) or 0),
+            days_shipping_scheduled=int(row.get("Days for shipment (scheduled)", 0) or 0),
+            delivery_status=str(row.get("Delivery Status", "")),
+            late_delivery_risk=int(row.get("Late_delivery_risk", 0) or 0),
+            market=str(row.get("Market", "")),
+            order_region=str(row.get("Order Region", "")),
+            order_country=str(row.get("Order Country", "")),
+            category_name=str(row.get("Category Name", "")),
+            department_name=str(row.get("Department Name", "")),
+            customer_segment=str(row.get("Customer Segment", "")),
+            customer_country=str(row.get("Customer Country", "")),
+            product_name=str(row.get("Product Name", "")),
+            product_price=float(row.get("Product Price", 0) or 0),
+            sales=float(row.get("Sales", 0) or 0),
+            order_profit_per_order=float(row.get("Order Profit Per Order", 0) or 0),
+            benefit_per_order=float(row.get("Benefit per order", 0) or 0),
+            order_item_quantity=int(row.get("Order Item Quantity", 0) or 0),
+            order_date=str(row.get("order date (DateOrders)", "")),
+            shipping_date=str(row.get("shipping date (DateOrders)", ""))
         )
         db.add(order)
         count += 1
+
         if count % 1000 == 0:
             db.commit()
             print(f"Inserted {count} records...")
 
     db.commit()
     db.close()
-    print("Data loaded successfully ✅")
+    print(f"Data loaded successfully - {count} records")
 
 if __name__ == "__main__":
     load_csv_data("data/DataCoSupplyChainDataset.csv", limit=50000)
